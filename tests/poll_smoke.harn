@@ -1,0 +1,145 @@
+import { init, poll_tick, shutdown } from "../src/lib"
+import { expect, expect_eq } from "./assertions"
+
+fn poll_ctx(cursor = nil, state = nil, extra = nil) {
+  return {
+    provider_id: "microsoft_365",
+    binding_id: "microsoft.drive.delta",
+    tick_at: "2026-07-06T12:00:00Z",
+    cursor: cursor,
+    state: state,
+    max_batch_size: 10,
+    binding: {
+      id: "microsoft.drive.delta",
+      kind: "poll",
+      config: {poll: {resource_path: "/me/drive/root"}, access_token: "secret_access"},
+    },
+  }
+    + (extra ?? {})
+}
+
+fn delta_body(items, link_key, link_value) {
+  var payload = {value: items}
+  payload[link_key] = link_value
+  return json_stringify(payload)
+}
+
+fn drive_item(id, modified, removed = false) {
+  var item = {
+    id: id,
+    name: "Report " + id + ".docx",
+    file: {mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+    lastModifiedDateTime: modified,
+    webUrl: "https://contoso.sharepoint.com/documents/" + id,
+  }
+  if removed {
+    item.deleted = {state: "deleted"}
+  }
+  return item
+}
+
+pipeline default() {
+  egress_policy({allow: ["graph.microsoft.com"], default: "deny"})
+  shutdown()
+  init({access_token: "secret_access"})
+  http_mock_clear()
+  let base = "https://graph.microsoft.com/v1.0"
+  http_mock(
+    "GET",
+    base + "/me/drive/root/delta*",
+    {
+      responses: [
+        {
+          status: 200,
+          body: delta_body(
+            [drive_item("item_1", "2026-07-06T11:00:00Z")],
+            "@odata.nextLink",
+            base + "/me/drive/root/delta?$skiptoken=next_1",
+          ),
+          headers: {},
+        },
+        {
+          status: 200,
+          body: delta_body(
+            [drive_item("item_2", "2026-07-06T11:05:00Z")],
+            "@odata.deltaLink",
+            base + "/me/drive/root/delta?$deltatoken=delta_2",
+          ),
+          headers: {},
+        },
+        {
+          status: 503,
+          body: "{\"error\":{\"code\":\"serviceUnavailable\",\"message\":\"try again\"}}",
+          headers: {},
+        },
+        {
+          status: 200,
+          body: delta_body(
+            [drive_item("item_3", "2026-07-06T11:10:00Z", true)],
+            "@odata.deltaLink",
+            base + "/me/drive/root/delta?$deltatoken=delta_3",
+          ),
+          headers: {},
+        },
+      ],
+    },
+  )
+  let first = poll_tick(poll_ctx())
+  expect_eq(len(first.events), 1, "first tick emits one normalized event")
+  expect_eq(first.events[0].kind, "microsoft_365.drive.item_changed", "poll event kind")
+  expect_eq(first.events[0].payload.item_id, "item_1", "poll item id")
+  expect_eq(
+    first.events[0].payload.mime_type,
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "poll mime type",
+  )
+  expect_eq(
+    first.cursor.next_link,
+    base + "/me/drive/root/delta?$skiptoken=next_1",
+    "first tick advances next link",
+  )
+  expect(
+    first.state.poll_cache.get("microsoft.drive.delta:item_1") != nil,
+    "first tick persists snapshot",
+  )
+  let second = poll_tick(poll_ctx(first.cursor, first.state))
+  expect_eq(len(second.events), 1, "second tick emits one changed item")
+  expect_eq(second.events[0].payload.item_id, "item_2", "second item id")
+  expect_eq(
+    second.cursor.delta_link,
+    base + "/me/drive/root/delta?$deltatoken=delta_2",
+    "second tick stores delta link",
+  )
+  let failed = poll_tick(poll_ctx(second.cursor, second.state))
+  expect(
+    is_err(failed),
+    "retryable Microsoft Graph failures return Err without advancing local state",
+  )
+  expect_eq(unwrap_err(failed).code, "serviceUnavailable", "retry error preserves Graph code")
+  let retried = poll_tick(poll_ctx(second.cursor, second.state))
+  expect_eq(len(retried.events), 1, "retry with same cursor can emit after transient failure")
+  expect_eq(retried.events[0].kind, "microsoft_365.drive.item_removed", "removed kind")
+  expect_eq(retried.events[0].payload.removed, true, "removed payload")
+  let calls = http_mock_calls({include_sensitive: true})
+  expect_eq(len(calls), 4, "one Drive delta request per tick")
+  expect_eq(calls[0].url, base + "/me/drive/root/delta", "first delta URL")
+  expect_eq(calls[1].url, base + "/me/drive/root/delta?$skiptoken=next_1", "nextLink URL")
+  expect_eq(calls[3].url, base + "/me/drive/root/delta?$deltatoken=delta_2", "deltaLink retry URL")
+  http_mock_clear()
+  http_mock(
+    "GET",
+    base + "/me/drive/root/delta*",
+    {
+      status: 200,
+      body: delta_body(
+        [drive_item("item_1", "2026-07-06T11:00:00Z")],
+        "@odata.deltaLink",
+        base + "/me/drive/root/delta?$deltatoken=delta_1",
+      ),
+      headers: {},
+    },
+  )
+  let duplicate = poll_tick(poll_ctx(nil, first.state))
+  expect_eq(len(duplicate.events), 0, "persisted state dedupes identical item snapshot")
+  shutdown()
+}

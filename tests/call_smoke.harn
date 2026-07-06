@@ -1,0 +1,133 @@
+import {
+  artifact_export_request,
+  artifact_import_request,
+  call,
+  init,
+  request_descriptor,
+  shutdown,
+} from "../src/lib"
+import { expect, expect_eq } from "./assertions"
+
+pipeline default() {
+  egress_policy({allow: ["graph.microsoft.com"], default: "deny"})
+  shutdown()
+  init({access_token: "secret_access"})
+  http_mock_clear()
+  let graph = "https://graph.microsoft.com/v1.0"
+  http_mock(
+    "*",
+    "https://graph.microsoft.com/*",
+    {
+      responses: [
+        {
+          status: 200,
+          body: "{\"id\":\"item_123\",\"name\":\"Report.docx\",\"file\":{\"mimeType\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"}}",
+          headers: {},
+        },
+        {status: 200, body: "{\"value\":[{\"id\":\"item_123\",\"name\":\"Report.docx\"}]}", headers: {}},
+        {status: 200, body: "DOCX-BYTES", headers: {}},
+        {status: 302, body: "", headers: {Location: "https://download.example/report.pdf"}},
+        {status: 200, body: "{\"id\":\"item_123\",\"name\":\"Report.docx\"}", headers: {}},
+        {status: 200, body: "{\"uploadUrl\":\"https://upload.example/session\"}", headers: {}},
+        {
+          status: 200,
+          body: "{\"value\":[{\"id\":\"item_123\",\"name\":\"Report.docx\"}],\"@odata.deltaLink\":\"https://graph.microsoft.com/v1.0/me/drive/root/delta?$deltatoken=next\"}",
+          headers: {},
+        },
+        {status: 201, body: "{\"id\":\"sub_123\",\"resource\":\"me/drive/root\"}", headers: {}},
+        {status: 204, body: "", headers: {}},
+        {status: 200, body: "{\"id\":\"sub_123\"}", headers: {}},
+      ],
+    },
+  )
+  let file = call("drive.items.get", {item_id: "item_123", select: "id,name"})
+  expect_eq(file.id, "item_123", "items.get response")
+  call("drive.items.list", {top: 10})
+  let content = call("drive.items.content", {item_id: "item_123"})
+  expect_eq(content.bytes, "DOCX-BYTES", "content bytes response")
+  let exported = call("drive.items.export", {item_id: "item_123", format: "pdf"})
+  expect_eq(exported.status, 302, "export returns redirect descriptor")
+  expect_eq(exported.location, "https://download.example/report.pdf", "export location")
+  let upload_rejected = call("drive.items.putContent", {item_id: "item_123", content: "doc bytes"})
+  expect(is_err(upload_rejected), "mutating Drive upload requires approval")
+  expect_eq(unwrap_err(upload_rejected).code, "approval_required", "approval code")
+  call("drive.items.putContent", {item_id: "item_123", content: "doc bytes", _approved: true})
+  call(
+    "drive.items.createUploadSession",
+    {drive_path: "Reports/report.docx", name: "report.docx", _approved: true},
+  )
+  call("drive.delta", {resource_path: "/me/drive/root"})
+  call(
+    "subscriptions.create",
+    {
+      changeType: "updated",
+      notificationUrl: "https://example.test/hooks/microsoft/graph",
+      resource: "me/drive/root",
+      expirationDateTime: "2026-07-07T12:00:00Z",
+      clientState: "test-state",
+      _approved: true,
+    },
+  )
+  call("subscriptions.delete", {subscription_id: "sub_123", _approved: true})
+  call(
+    "subscriptions.renew",
+    {subscription_id: "sub_123", expirationDateTime: "2026-07-08T12:00:00Z", _approved: true},
+  )
+  let calls = http_mock_calls({include_sensitive: true})
+  expect_eq(len(calls), 10, "all expected outbound methods dispatched")
+  expect_eq(calls[0].method, "GET", "items.get uses GET")
+  expect_eq(calls[0].url, graph + "/me/drive/items/item_123?%24select=id%2Cname", "items.get URL")
+  expect_eq(calls[0].headers.authorization, "Bearer secret_access", "authorization header sent")
+  expect_eq(calls[1].url, graph + "/me/drive/root/children?%24top=10", "children URL")
+  expect_eq(calls[3].url, graph + "/me/drive/items/item_123/content?format=pdf", "export URL")
+  expect_eq(calls[4].method, "PUT", "putContent uses PUT")
+  expect_eq(calls[4].url, graph + "/me/drive/items/item_123/content", "putContent URL")
+  expect_eq(calls[4].body, "doc bytes", "raw upload body is preserved")
+  expect_eq(
+    calls[5].url,
+    graph + "/me/drive/root:/Reports/report.docx:/createUploadSession",
+    "upload session URL",
+  )
+  let upload_body = json_parse(calls[5].body)
+  expect_eq(upload_body.item.name, "report.docx", "upload session body name")
+  expect_eq(calls[7].url, graph + "/subscriptions", "subscription create URL")
+  expect_eq(calls[8].method, "DELETE", "subscription delete method")
+  expect_eq(calls[9].method, "PATCH", "subscription renew method")
+  let export = artifact_export_request({item_id: "item_123", format: "pdf", name: "report.pdf"})
+  expect_eq(export.kind, "artifact_export", "export descriptor kind")
+  expect_eq(export.method, "GET", "export descriptor method")
+  expect_eq(export.artifact.mime_type, "application/pdf", "export artifact mime")
+  let import_request = artifact_import_request(
+    {
+      name: "report.docx",
+      uri: "artifact://session/report.docx",
+      mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      item_id: "item_123",
+    },
+  )
+  expect_eq(import_request.kind, "artifact_import", "import descriptor kind")
+  expect_eq(import_request.method, "PUT", "import method")
+  expect_eq(import_request.media.uri, "artifact://session/report.docx", "import media uri")
+  let descriptor = request_descriptor(
+    "drive.items.export",
+    {access_token: "secret_access", item_id: "item_123", format: "pdf"},
+  )
+  expect(!is_err(descriptor), "export request descriptor builds")
+  expect_eq(
+    unwrap(descriptor).url,
+    graph + "/me/drive/items/item_123/content?format=pdf",
+    "export request URL",
+  )
+  let bad_host = call(
+    "drive.items.get",
+    {
+      item_id: "item_123",
+      access_token: "secret_access",
+      graph_api_base_url: "https://evil.example/v1.0",
+    },
+  )
+  expect(is_err(bad_host), "disallowed graph_api_base_url rejected")
+  expect_eq(unwrap_err(bad_host).code, "disallowed_api_base_url", "disallowed host code")
+  http_mock_clear()
+  shutdown()
+}

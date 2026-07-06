@@ -1,0 +1,71 @@
+[package]
+name = "harn-microsoft-365-connector"
+version = "0.1.0"
+description = "Pure-Harn Microsoft 365 connector for Graph Drive/Office artifacts, webhooks, polling, and outbound API dispatch."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/burin-labs/harn-microsoft-365-connector"
+harn = ">=0.9,<0.10"
+docs_url = "README.md"
+provenance = "https://github.com/burin-labs/harn-microsoft-365-connector/releases/tag/v0.1.0"
+
+[exports]
+default = "src/lib.harn"
+
+[[providers]]
+id = "microsoft_365"
+connector = { harn = "src/lib.harn" }
+capabilities = ["webhook", "oauth", "pagination"]
+
+[providers.oauth]
+resource = "https://graph.microsoft.com/"
+authorization_endpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+token_endpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+scopes = "offline_access Files.Read Files.ReadWrite Sites.Read.All Sites.ReadWrite.All"
+token_endpoint_auth_method = "client_secret_post"
+
+[providers.setup]
+auth_type = "oauth2"
+flow = "browser"
+required_scopes = [
+  "offline_access",
+  "Files.Read",
+  "Files.ReadWrite",
+  "Sites.Read.All",
+  "Sites.ReadWrite.All",
+]
+required_secrets = ["microsoft-365/access-token", "microsoft-365/client-state"]
+setup_command = ["harn", "connect", "microsoft-365"]
+validation_command = ["harn", "connect", "status", "--connector", "microsoft_365", "--json"]
+
+[[providers.setup.health_checks]]
+id = "access-token"
+kind = "secret"
+secret = "microsoft-365/access-token"
+
+[[providers.setup.health_checks]]
+id = "client-state"
+kind = "secret"
+secret = "microsoft-365/client-state"
+
+[providers.setup.recovery]
+missing_auth = "Store microsoft-365/access-token before enabling Microsoft 365 bindings."
+expired_credentials = "Refresh the OAuth access token and rerun Microsoft 365 validation."
+revoked_credentials = "Reauthorize Microsoft 365 and replace microsoft-365/access-token."
+missing_scopes = "Grant Microsoft Graph Files and Sites scopes required by the configured artifact workflow."
+inaccessible_resource = "Confirm the selected OneDrive or SharePoint file is visible to the authorized account."
+transient_provider_outage = "Retry after Microsoft Graph APIs and change notifications are healthy."
+
+[dependencies]
+
+[connector_contract]
+version = 1
+
+[[connector_contract.fixtures]]
+provider = "microsoft_365"
+name = "drive item change notification"
+kind = "webhook"
+metadata = { client_state = "fixture-state", binding_id = "microsoft.drive.subscription" }
+body = "{\"value\":[{\"subscriptionId\":\"sub_123\",\"clientState\":\"fixture-state\",\"changeType\":\"updated\",\"resource\":\"me/drive/root\",\"resourceData\":{\"id\":\"item_123\"}}]}"
+expect_type = "event"
+expect_kind = "microsoft_365.graph.updated"
+expect_event_count = 1

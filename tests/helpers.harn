@@ -1,0 +1,49 @@
+import { activate, init, kinds, payload_schema, provider_id, shutdown } from "../src/lib"
+
+/** Assert the exported connector lifecycle/interface surface. */
+pub fn assert_microsoft_365_interface() {
+  shutdown()
+  require provider_id() == "microsoft_365", "provider id"
+  require kinds() == ["webhook", "poll"], "supported kinds"
+  require payload_schema().harn_schema_name == "Microsoft365EventPayload", "payload schema name"
+  let initialized = init({client_state: "test-state", access_token: "secret_access"})
+  require initialized.initialized, "init stores state"
+  let activated = activate(
+    [
+      {
+        id: "microsoft.drive.subscription",
+        kind: "webhook",
+        path: "/hooks/microsoft/graph",
+        secrets: {client_state: "test-state"},
+      },
+      {
+        id: "microsoft.drive.delta",
+        kind: "poll",
+        poll: {resource_path: "/me/drive/root"},
+        access_token: "secret_access",
+      },
+    ],
+  )
+  require activated.bindings == 2, "activate counts bindings"
+  require activated.webhook_bindings == 1, "activate counts webhook bindings"
+  require activated.poll_bindings == 1, "activate counts poll bindings"
+}
+
+/** Build a Microsoft Graph change notification body. */
+pub fn graph_notification_body(client_state = "test-state", extra = nil) {
+  return json_stringify(
+    {
+      value: [
+        {
+          subscriptionId: "sub_123",
+          clientState: client_state,
+          changeType: "updated",
+          resource: "me/drive/root",
+          resourceData: {id: "item_123"},
+          tenantId: "tenant_123",
+        }
+          + (extra ?? {}),
+      ],
+    },
+  )
+}
