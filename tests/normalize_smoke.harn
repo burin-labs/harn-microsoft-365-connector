@@ -3,13 +3,13 @@ import { expect, expect_eq } from "./assertions"
 import { assert_microsoft_365_interface, graph_notification_body } from "./helpers"
 
 pipeline default() {
-  let state = "test-state"
+  const state = "test-state"
   assert_microsoft_365_interface()
-  let validation = normalize_inbound({query: {validationToken: "validation-token"}})
+  const validation = normalize_inbound({query: {validationToken: "validation-token"}})
   expect_eq(validation.type, "response", "validation challenge returns response envelope")
   expect_eq(validation.response.status, 200, "validation status")
   expect_eq(validation.response.body, "validation-token", "validation body")
-  let event = normalize_inbound({client_state: state, body: graph_notification_body(state)})
+  const event = normalize_inbound({client_state: state, body: graph_notification_body(state)})
   expect_eq(event.type, "event", "Graph notification envelope type")
   expect_eq(event.event.kind, "microsoft_365.graph.updated", "Graph event kind")
   expect_eq(event.event.signature_status.state, "verified", "clientState verified")
@@ -19,7 +19,7 @@ pipeline default() {
   expect(event.event.dedupe_key.contains("sub_123"), "dedupe key includes subscription")
   expect_eq(event.event.source_refs[0].kind, "graph_resource", "source ref kind")
   shutdown()
-  let unsigned = normalize_inbound({body: graph_notification_body("")})
+  const unsigned = normalize_inbound({body: graph_notification_body("")})
   expect_eq(
     unsigned.type,
     "event",
@@ -27,10 +27,10 @@ pipeline default() {
   )
   expect_eq(unsigned.event.signature_status.state, "unsigned", "unsigned state")
   init({client_state: state})
-  let bad_state = normalize_inbound({client_state: state, body: graph_notification_body("wrong")})
+  const bad_state = normalize_inbound({client_state: state, body: graph_notification_body("wrong")})
   expect_eq(bad_state.type, "reject", "wrong clientState rejects")
   expect_eq(bad_state.reject.status, 401, "wrong clientState status")
-  let missing = normalize_inbound({client_state: state, body: "{}"})
+  const missing = normalize_inbound({client_state: state, body: "{}"})
   expect_eq(missing.type, "reject", "missing notification rejects")
   expect_eq(missing.reject.status, 400, "missing notification status")
   shutdown()
