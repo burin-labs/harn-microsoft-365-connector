@@ -13,7 +13,7 @@ pipeline default() {
   shutdown()
   init({access_token: "secret_access"})
   http_mock_clear()
-  let graph = "https://graph.microsoft.com/v1.0"
+  const graph = "https://graph.microsoft.com/v1.0"
   http_mock(
     "*",
     "https://graph.microsoft.com/*",
@@ -40,15 +40,15 @@ pipeline default() {
       ],
     },
   )
-  let file = call("drive.items.get", {item_id: "item_123", select: "id,name"})
+  const file = call("drive.items.get", {item_id: "item_123", select: "id,name"})
   expect_eq(file.id, "item_123", "items.get response")
   call("drive.items.list", {top: 10})
-  let content = call("drive.items.content", {item_id: "item_123"})
+  const content = call("drive.items.content", {item_id: "item_123"})
   expect_eq(content.bytes, "DOCX-BYTES", "content bytes response")
-  let exported = call("drive.items.export", {item_id: "item_123", format: "pdf"})
+  const exported = call("drive.items.export", {item_id: "item_123", format: "pdf"})
   expect_eq(exported.status, 302, "export returns redirect descriptor")
   expect_eq(exported.location, "https://download.example/report.pdf", "export location")
-  let upload_rejected = call("drive.items.putContent", {item_id: "item_123", content: "doc bytes"})
+  const upload_rejected = call("drive.items.putContent", {item_id: "item_123", content: "doc bytes"})
   expect(is_err(upload_rejected), "mutating Drive upload requires approval")
   expect_eq(unwrap_err(upload_rejected).code, "approval_required", "approval code")
   call("drive.items.putContent", {item_id: "item_123", content: "doc bytes", _approved: true})
@@ -73,7 +73,7 @@ pipeline default() {
     "subscriptions.renew",
     {subscription_id: "sub_123", expirationDateTime: "2026-07-08T12:00:00Z", _approved: true},
   )
-  let calls = http_mock_calls({include_sensitive: true})
+  const calls = http_mock_calls({include_sensitive: true})
   expect_eq(len(calls), 10, "all expected outbound methods dispatched")
   expect_eq(calls[0].method, "GET", "items.get uses GET")
   expect_eq(calls[0].url, graph + "/me/drive/items/item_123?%24select=id%2Cname", "items.get URL")
@@ -88,16 +88,16 @@ pipeline default() {
     graph + "/me/drive/root:/Reports/report.docx:/createUploadSession",
     "upload session URL",
   )
-  let upload_body = json_parse(calls[5].body)
+  const upload_body = json_parse(calls[5].body)
   expect_eq(upload_body.item.name, "report.docx", "upload session body name")
   expect_eq(calls[7].url, graph + "/subscriptions", "subscription create URL")
   expect_eq(calls[8].method, "DELETE", "subscription delete method")
   expect_eq(calls[9].method, "PATCH", "subscription renew method")
-  let export = artifact_export_request({item_id: "item_123", format: "pdf", name: "report.pdf"})
+  const export = artifact_export_request({item_id: "item_123", format: "pdf", name: "report.pdf"})
   expect_eq(export.kind, "artifact_export", "export descriptor kind")
   expect_eq(export.method, "GET", "export descriptor method")
   expect_eq(export.artifact.mime_type, "application/pdf", "export artifact mime")
-  let import_request = artifact_import_request(
+  const import_request = artifact_import_request(
     {
       name: "report.docx",
       uri: "artifact://session/report.docx",
@@ -108,7 +108,7 @@ pipeline default() {
   expect_eq(import_request.kind, "artifact_import", "import descriptor kind")
   expect_eq(import_request.method, "PUT", "import method")
   expect_eq(import_request.media.uri, "artifact://session/report.docx", "import media uri")
-  let descriptor = request_descriptor(
+  const descriptor = request_descriptor(
     "drive.items.export",
     {access_token: "secret_access", item_id: "item_123", format: "pdf"},
   )
@@ -118,7 +118,7 @@ pipeline default() {
     graph + "/me/drive/items/item_123/content?format=pdf",
     "export request URL",
   )
-  let bad_host = call(
+  const bad_host = call(
     "drive.items.get",
     {
       item_id: "item_123",

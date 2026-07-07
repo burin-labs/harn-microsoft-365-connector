@@ -19,13 +19,13 @@ fn poll_ctx(cursor = nil, state = nil, extra = nil) {
 }
 
 fn delta_body(items, link_key, link_value) {
-  var payload = {value: items}
+  let payload = {value: items}
   payload[link_key] = link_value
   return json_stringify(payload)
 }
 
 fn drive_item(id, modified, removed = false) {
-  var item = {
+  let item = {
     id: id,
     name: "Report " + id + ".docx",
     file: {mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
@@ -43,7 +43,7 @@ pipeline default() {
   shutdown()
   init({access_token: "secret_access"})
   http_mock_clear()
-  let base = "https://graph.microsoft.com/v1.0"
+  const base = "https://graph.microsoft.com/v1.0"
   http_mock(
     "GET",
     base + "/me/drive/root/delta*",
@@ -84,7 +84,7 @@ pipeline default() {
       ],
     },
   )
-  let first = poll_tick(poll_ctx())
+  const first = poll_tick(poll_ctx())
   expect_eq(len(first.events), 1, "first tick emits one normalized event")
   expect_eq(first.events[0].kind, "microsoft_365.drive.item_changed", "poll event kind")
   expect_eq(first.events[0].payload.item_id, "item_1", "poll item id")
@@ -102,7 +102,7 @@ pipeline default() {
     first.state.poll_cache.get("microsoft.drive.delta:item_1") != nil,
     "first tick persists snapshot",
   )
-  let second = poll_tick(poll_ctx(first.cursor, first.state))
+  const second = poll_tick(poll_ctx(first.cursor, first.state))
   expect_eq(len(second.events), 1, "second tick emits one changed item")
   expect_eq(second.events[0].payload.item_id, "item_2", "second item id")
   expect_eq(
@@ -110,17 +110,17 @@ pipeline default() {
     base + "/me/drive/root/delta?$deltatoken=delta_2",
     "second tick stores delta link",
   )
-  let failed = poll_tick(poll_ctx(second.cursor, second.state))
+  const failed = poll_tick(poll_ctx(second.cursor, second.state))
   expect(
     is_err(failed),
     "retryable Microsoft Graph failures return Err without advancing local state",
   )
   expect_eq(unwrap_err(failed).code, "serviceUnavailable", "retry error preserves Graph code")
-  let retried = poll_tick(poll_ctx(second.cursor, second.state))
+  const retried = poll_tick(poll_ctx(second.cursor, second.state))
   expect_eq(len(retried.events), 1, "retry with same cursor can emit after transient failure")
   expect_eq(retried.events[0].kind, "microsoft_365.drive.item_removed", "removed kind")
   expect_eq(retried.events[0].payload.removed, true, "removed payload")
-  let calls = http_mock_calls({include_sensitive: true})
+  const calls = http_mock_calls({include_sensitive: true})
   expect_eq(len(calls), 4, "one Drive delta request per tick")
   expect_eq(calls[0].url, base + "/me/drive/root/delta", "first delta URL")
   expect_eq(calls[1].url, base + "/me/drive/root/delta?$skiptoken=next_1", "nextLink URL")
@@ -139,7 +139,7 @@ pipeline default() {
       headers: {},
     },
   )
-  let duplicate = poll_tick(poll_ctx(nil, first.state))
+  const duplicate = poll_tick(poll_ctx(nil, first.state))
   expect_eq(len(duplicate.events), 0, "persisted state dedupes identical item snapshot")
   shutdown()
 }

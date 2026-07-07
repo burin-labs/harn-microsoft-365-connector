@@ -1,12 +1,12 @@
-let MICROSOFT_365_PROVIDER_ID = "microsoft_365"
+const MICROSOFT_365_PROVIDER_ID = "microsoft_365"
 
-let MICROSOFT_GRAPH_API_BASE_URL = "https://graph.microsoft.com/v1.0"
+const MICROSOFT_GRAPH_API_BASE_URL = "https://graph.microsoft.com/v1.0"
 
-let MICROSOFT_GRAPH_ALLOWED_HOSTS = ["graph.microsoft.com"]
+const MICROSOFT_GRAPH_ALLOWED_HOSTS = ["graph.microsoft.com"]
 
-let MICROSOFT_CLIENT_STATE_MAX_LEN = 512
+const MICROSOFT_CLIENT_STATE_MAX_LEN = 512
 
-let MICROSOFT_OUTBOUND_METHODS = [
+const MICROSOFT_OUTBOUND_METHODS = [
   "drive.items.get",
   "drive.items.list",
   "drive.items.content",
@@ -21,7 +21,7 @@ let MICROSOFT_OUTBOUND_METHODS = [
   "artifact.import_request",
 ]
 
-let MICROSOFT_MUTATING_METHODS = [
+const MICROSOFT_MUTATING_METHODS = [
   "drive.items.putContent",
   "drive.items.createUploadSession",
   "subscriptions.create",
@@ -30,7 +30,7 @@ let MICROSOFT_MUTATING_METHODS = [
   "artifact.import_request",
 ]
 
-var MICROSOFT_STATE = {initialized: false, active: false, ctx: {}, webhook_bindings: {}, poll_bindings: {}}
+let MICROSOFT_STATE = {initialized: false, active: false, ctx: {}, webhook_bindings: {}, poll_bindings: {}}
 
 /** Return this connector's Harn provider id. */
 pub fn provider_id() {
@@ -44,7 +44,7 @@ pub fn kinds() {
 
 /** Describe outbound methods and which ones mutate provider state. */
 pub fn methods() {
-  var out = []
+  let out = []
   for name in MICROSOFT_OUTBOUND_METHODS {
     out = out + [{name: name, requires_approval: contains(MICROSOFT_MUTATING_METHODS, name)}]
   }
@@ -87,17 +87,17 @@ pub fn init(ctx = nil) {
 
 /** Activate webhook and poll bindings. */
 pub fn activate(bindings = []) {
-  var webhook_bindings = {}
-  var poll_bindings = {}
-  var seen_paths = {}
+  let webhook_bindings = {}
+  let poll_bindings = {}
+  let seen_paths = {}
   for binding in bindings ?? [] {
-    let binding_id = __text(
+    const binding_id = __text(
       binding?.binding_id ?? binding?.id
         ?? ("binding-" + to_string(len(webhook_bindings.keys()) + len(poll_bindings.keys()))),
     )
-    let kind = __text(binding?.kind ?? "webhook")
+    const kind = __text(binding?.kind ?? "webhook")
     if kind == "webhook" {
-      let path = __text(binding?.path ?? binding?.match?.path)
+      const path = __text(binding?.path ?? binding?.match?.path)
       if path != "" {
         if seen_paths.get(path) {
           return __err(
@@ -137,7 +137,7 @@ pub fn shutdown() {
  * parameter. Normal notifications include one or more records under `value`.
  */
 pub fn normalize_inbound(raw) {
-  let validation_token = __text(
+  const validation_token = __text(
     raw?.validation_token ?? raw?.validationToken ?? raw?.query?.validationToken
       ?? raw?.query_params?.validationToken,
   )
@@ -147,32 +147,32 @@ pub fn normalize_inbound(raw) {
       response: {status: 200, headers: {"Content-Type": "text/plain"}, body: validation_token},
     }
   }
-  let body = __body_json(raw)
+  const body = __body_json(raw)
   if is_err(body) {
     return __reject(400, "invalid_json", "microsoft graph notification body must be JSON")
   }
-  let payload = unwrap(body)
-  let notifications = payload?.value ?? raw?.notifications ?? []
+  const payload = unwrap(body)
+  const notifications = payload?.value ?? raw?.notifications ?? []
   if len(notifications) == 0 {
     return __reject(400, "missing_notifications", "microsoft graph notification body must contain value[]")
   }
-  let expected_client_state = __text(
+  const expected_client_state = __text(
     raw?.client_state ?? raw?.clientState ?? raw?.metadata?.client_state
       ?? MICROSOFT_STATE.ctx?.client_state,
   )
   if len(expected_client_state) > MICROSOFT_CLIENT_STATE_MAX_LEN {
     return __reject(400, "client_state_too_long", "microsoft graph clientState exceeds maximum length")
   }
-  var events = []
+  let events = []
   for notification in notifications {
-    let provided_client_state = __text(notification?.clientState)
+    const provided_client_state = __text(notification?.clientState)
     if expected_client_state != "" && !constant_time_eq(expected_client_state, provided_client_state) {
       return __reject(401, "invalid_client_state", "microsoft graph clientState did not match")
     }
-    let change_type = __text(notification?.changeType ?? "updated")
-    let resource = __text(notification?.resource)
-    let resource_id = __text(notification?.resourceData?.id ?? __last_path_segment(resource))
-    let event = "microsoft_365.graph." + change_type
+    const change_type = __text(notification?.changeType ?? "updated")
+    const resource = __text(notification?.resource)
+    const resource_id = __text(notification?.resourceData?.id ?? __last_path_segment(resource))
+    const event = "microsoft_365.graph." + change_type
     events = events
       + [
       {
@@ -219,7 +219,7 @@ pub fn normalize_inbound(raw) {
 
 /** Dispatch one Microsoft Graph outbound method. */
 pub fn call(method, args = nil) {
-  let name = __canonical_method(method)
+  const name = __canonical_method(method)
   if name == "artifact.export_request" {
     return artifact_export_request(args ?? {})
   }
@@ -229,11 +229,11 @@ pub fn call(method, args = nil) {
   if contains(MICROSOFT_MUTATING_METHODS, name) && !(args?._approved ?? args?.approved ?? false) {
     return __err("approval_required", "microsoft 365 method `" + name + "` requires approval")
   }
-  let cfg = __config(args ?? {})
+  const cfg = __config(args ?? {})
   if is_err(cfg) {
     return cfg
   }
-  let request = __request_for_method(name, args ?? {}, unwrap(cfg))
+  const request = __request_for_method(name, args ?? {}, unwrap(cfg))
   if is_err(request) {
     return request
   }
@@ -242,7 +242,7 @@ pub fn call(method, args = nil) {
 
 /** Build the deterministic HTTP descriptor for a Microsoft Graph method. */
 pub fn request_descriptor(method, args = nil) {
-  let cfg = __config(args ?? {})
+  const cfg = __config(args ?? {})
   if is_err(cfg) {
     return cfg
   }
@@ -251,41 +251,41 @@ pub fn request_descriptor(method, args = nil) {
 
 /** Poll Microsoft Graph DriveItem delta and normalize changed file events. */
 pub fn poll_tick(ctx) {
-  let cfg = __config((ctx?.binding?.config ?? {}) + (ctx?.binding ?? {}) + (ctx ?? {}))
+  const cfg = __config((ctx?.binding?.config ?? {}) + (ctx?.binding ?? {}) + (ctx ?? {}))
   if is_err(cfg) {
     return cfg
   }
-  let binding = ctx?.binding ?? {}
-  let poll = binding?.poll ?? binding?.config?.poll ?? {}
-  let delta_url = __text(ctx?.cursor?.next_link ?? ctx?.cursor?.delta_link ?? poll?.delta_link)
-  let args = (poll ?? {}) + {delta_url: delta_url}
-  let request = __drive_delta_request(args, unwrap(cfg))
+  const binding = ctx?.binding ?? {}
+  const poll = binding?.poll ?? binding?.config?.poll ?? {}
+  const delta_url = __text(ctx?.cursor?.next_link ?? ctx?.cursor?.delta_link ?? poll?.delta_link)
+  const args = (poll ?? {}) + {delta_url: delta_url}
+  const request = __drive_delta_request(args, unwrap(cfg))
   if is_err(request) {
     return request
   }
-  let response = __graph_request(unwrap(request))
+  const response = __graph_request(unwrap(request))
   if is_err(response) {
     return response
   }
-  let payload = unwrap(response)
-  var events = []
-  let state = ctx?.state ?? {}
-  let cache = state?.poll_cache ?? {}
-  var next_cache = cache
+  const payload = unwrap(response)
+  let events = []
+  const state = ctx?.state ?? {}
+  const cache = state?.poll_cache ?? {}
+  let next_cache = cache
   for item in payload?.value ?? [] {
-    let item_id = __text(item?.id)
+    const item_id = __text(item?.id)
     if item_id == "" {
       continue
     }
-    let removed = item?.deleted != nil || item?.["@removed"] != nil
-    let changed_at = __text(item?.lastModifiedDateTime ?? item?.createdDateTime ?? ctx?.tick_at)
-    let fingerprint = json_stringify({removed: removed, item: item, changed_at: changed_at})
-    let cache_key = __text(ctx?.binding_id ?? binding?.id ?? "microsoft.poll") + ":" + item_id
+    const removed = item?.deleted != nil || item?.["@removed"] != nil
+    const changed_at = __text(item?.lastModifiedDateTime ?? item?.createdDateTime ?? ctx?.tick_at)
+    const fingerprint = json_stringify({removed: removed, item: item, changed_at: changed_at})
+    const cache_key = __text(ctx?.binding_id ?? binding?.id ?? "microsoft.poll") + ":" + item_id
     if cache.get(cache_key) == fingerprint {
       continue
     }
     next_cache[cache_key] = fingerprint
-    let event_kind = if removed {
+    const event_kind = if removed {
       "microsoft_365.drive.item_removed"
     } else {
       "microsoft_365.drive.item_changed"
@@ -325,16 +325,16 @@ pub fn poll_tick(ctx) {
 
 /** Build a deterministic Graph export descriptor for an Office artifact. */
 pub fn artifact_export_request(args = nil) {
-  let format = __text(args?.format ?? "pdf")
-  let name = __text((args?.name ?? "microsoft-365-export.") + format)
-  let cfg = {
+  const format = __text(args?.format ?? "pdf")
+  const name = __text((args?.name ?? "microsoft-365-export.") + format)
+  const cfg = {
     graph_api_base_url: __strip_trailing_slash(__text(args?.graph_api_base_url ?? MICROSOFT_GRAPH_API_BASE_URL)),
   }
-  let item_url = __drive_item_url(cfg, args ?? {}, "/content")
+  const item_url = __drive_item_url(cfg, args ?? {}, "/content")
   if is_err(item_url) {
     return item_url
   }
-  let url = unwrap(item_url)
+  const url = unwrap(item_url)
   return {
     provider: MICROSOFT_365_PROVIDER_ID,
     kind: "artifact_export",
@@ -354,15 +354,15 @@ pub fn artifact_export_request(args = nil) {
 
 /** Build a deterministic Graph import/upload descriptor for a local artifact. */
 pub fn artifact_import_request(args = nil) {
-  let name = __required(args, "name")
+  const name = __required(args, "name")
   if is_err(name) {
     return name
   }
-  let mime_type = __text(args?.mime_type ?? args?.mimeType ?? "application/octet-stream")
-  let cfg = {
+  const mime_type = __text(args?.mime_type ?? args?.mimeType ?? "application/octet-stream")
+  const cfg = {
     graph_api_base_url: __strip_trailing_slash(__text(args?.graph_api_base_url ?? MICROSOFT_GRAPH_API_BASE_URL)),
   }
-  let content_url = __drive_item_content_url(cfg, args ?? {})
+  const content_url = __drive_item_content_url(cfg, args ?? {})
   if is_err(content_url) {
     return content_url
   }
@@ -387,7 +387,7 @@ pub fn artifact_import_request(args = nil) {
 
 fn __request_for_method(method, args, cfg) {
   if method == "drive.items.get" {
-    let item_url = __drive_item_url(cfg, args, "")
+    const item_url = __drive_item_url(cfg, args, "")
     if is_err(item_url) {
       return item_url
     }
@@ -397,14 +397,14 @@ fn __request_for_method(method, args, cfg) {
     return Ok(__json_request("GET", __drive_children_url(cfg, args), nil, cfg, args))
   }
   if method == "drive.items.content" {
-    let item_url = __drive_item_url(cfg, args, "/content")
+    const item_url = __drive_item_url(cfg, args, "/content")
     if is_err(item_url) {
       return item_url
     }
     return Ok(__json_request("GET", unwrap(item_url), nil, cfg, args))
   }
   if method == "drive.items.export" {
-    let item_url = __drive_item_url(cfg, args, "/content")
+    const item_url = __drive_item_url(cfg, args, "/content")
     if is_err(item_url) {
       return item_url
     }
@@ -413,32 +413,32 @@ fn __request_for_method(method, args, cfg) {
     )
   }
   if method == "drive.items.putContent" {
-    let content_url = __drive_item_content_url(cfg, args)
+    const content_url = __drive_item_content_url(cfg, args)
     if is_err(content_url) {
       return content_url
     }
     return Ok(__json_request("PUT", unwrap(content_url), args?.body ?? args?.content ?? "", cfg, args))
   }
   if method == "drive.items.createUploadSession" {
-    let upload_url = __drive_upload_session_url(cfg, args)
+    const upload_url = __drive_upload_session_url(cfg, args)
     if is_err(upload_url) {
       return upload_url
     }
-    let body = args?.body ?? {item: {name: args?.name, description: args?.description}}
+    const body = args?.body ?? {item: {name: args?.name, description: args?.description}}
     return Ok(__json_request("POST", unwrap(upload_url), body, cfg, args))
   }
   if method == "drive.delta" {
     return __drive_delta_request(args, cfg)
   }
   if method == "subscriptions.create" {
-    let body = __clean_body(
+    const body = __clean_body(
       args,
       ["access_token", "token", "graph_api_base_url", "api_base_url", "_approved", "approved"],
     )
     return Ok(__json_request("POST", cfg.graph_api_base_url + "/subscriptions", body, cfg, args))
   }
   if method == "subscriptions.delete" {
-    let subscription_id = __required(args, "subscription_id")
+    const subscription_id = __required(args, "subscription_id")
     if is_err(subscription_id) {
       return subscription_id
     }
@@ -453,7 +453,7 @@ fn __request_for_method(method, args, cfg) {
     )
   }
   if method == "subscriptions.renew" {
-    let subscription_id = __required(args, "subscription_id")
+    const subscription_id = __required(args, "subscription_id")
     if is_err(subscription_id) {
       return subscription_id
     }
@@ -474,15 +474,15 @@ fn __request_for_method(method, args, cfg) {
 }
 
 fn __drive_delta_request(args, cfg) {
-  let delta_url = __text(args?.delta_url ?? args?.deltaUrl)
+  const delta_url = __text(args?.delta_url ?? args?.deltaUrl)
   if delta_url != "" {
-    let checked = __validate_api_url(delta_url)
+    const checked = __validate_api_url(delta_url)
     if is_err(checked) {
       return checked
     }
     return Ok(__json_request("GET", delta_url, nil, cfg, {}))
   }
-  let resource_path = __drive_resource_path(args, "/me/drive/root")
+  const resource_path = __drive_resource_path(args, "/me/drive/root")
   return Ok(__json_request("GET", cfg.graph_api_base_url + resource_path + "/delta", nil, cfg, args))
 }
 
@@ -504,7 +504,7 @@ fn __drive_item_url(cfg, args, suffix) {
         + suffix,
     )
   }
-  let item_id = __required(args, "item_id")
+  const item_id = __required(args, "item_id")
   if is_err(item_id) {
     return item_id
   }
@@ -524,7 +524,7 @@ fn __drive_item_content_url(cfg, args) {
     || __text(args?.resource_path ?? args?.resourcePath) != "" {
     return __drive_item_url(cfg, args, "/content")
   }
-  let path = __text(args?.drive_path ?? args?.drivePath)
+  const path = __text(args?.drive_path ?? args?.drivePath)
   if path == "" {
     return __err("missing_item_id", "microsoft 365 upload requires item_id, resource_path, or drive_path")
   }
@@ -536,7 +536,7 @@ fn __drive_upload_session_url(cfg, args) {
     || __text(args?.resource_path ?? args?.resourcePath) != "" {
     return __drive_item_url(cfg, args, "/createUploadSession")
   }
-  let path = __text(args?.drive_path ?? args?.drivePath)
+  const path = __text(args?.drive_path ?? args?.drivePath)
   if path == "" {
     return __err(
       "missing_item_id",
@@ -560,7 +560,7 @@ fn __drive_resource_path(args, fallback) {
 }
 
 fn __json_request(method, url, body, cfg, args) {
-  let checked_url = __with_query(url, __query_params(args ?? {}))
+  const checked_url = __with_query(url, __query_params(args ?? {}))
   return {
     method: method,
     url: checked_url,
@@ -576,18 +576,18 @@ fn __json_request(method, url, body, cfg, args) {
 }
 
 fn __graph_request(request) {
-  let response = try {
+  const response = try {
     harness.net.request(request.method, request.url, {headers: request.headers, body: request.body})
   }
   if is_err(response) {
     return __err("transport", to_string(unwrap_err(response)))
   }
-  let http_response = unwrap(response)
+  const http_response = unwrap(response)
   if http_response.status >= 300 && http_response.status < 400 {
     return {status: http_response.status, location: __header(http_response.headers ?? {}, "location")}
   }
-  let text = http_response.body ?? "{}"
-  let decoded = try {
+  const text = http_response.body ?? "{}"
+  const decoded = try {
     if text == "" {
       {}
     } else {
@@ -600,7 +600,7 @@ fn __graph_request(request) {
     }
     return __err("invalid_response", "Microsoft Graph API returned invalid JSON")
   }
-  let payload = unwrap(decoded)
+  const payload = unwrap(decoded)
   if http_response.status < 200 || http_response.status >= 300 {
     return Err(
       {
@@ -615,15 +615,15 @@ fn __graph_request(request) {
 }
 
 fn __config(args) {
-  let access_token = __text(args?.access_token ?? args?.token ?? MICROSOFT_STATE.ctx?.access_token)
+  const access_token = __text(args?.access_token ?? args?.token ?? MICROSOFT_STATE.ctx?.access_token)
   if access_token == "" {
     return __err("missing_access_token", "microsoft 365 connector requires access_token")
   }
-  let graph_api_base_url = __text(
+  const graph_api_base_url = __text(
     args?.graph_api_base_url ?? args?.api_base_url ?? MICROSOFT_STATE.ctx?.graph_api_base_url
       ?? MICROSOFT_GRAPH_API_BASE_URL,
   )
-  let checked = __validate_api_url(graph_api_base_url)
+  const checked = __validate_api_url(graph_api_base_url)
   if is_err(checked) {
     return checked
   }
@@ -635,8 +635,8 @@ fn __graph_headers(cfg) {
 }
 
 fn __query_params(args) {
-  var out = {}
-  let aliases = {
+  let out = {}
+  const aliases = {
     select: "$select",
     top: "$top",
     expand: "$expand",
@@ -648,7 +648,7 @@ fn __query_params(args) {
     format: "format",
   }
   for key in aliases.keys() {
-    let value = args?.[key]
+    const value = args?.[key]
     if value != nil && __text(value) != "" {
       out[aliases[key]] = value
     }
@@ -657,9 +657,9 @@ fn __query_params(args) {
 }
 
 fn __with_query(url, query) {
-  var parts = []
+  let parts = []
   for key in query.keys().sort() {
-    let value = query[key]
+    const value = query[key]
     if value != nil && __text(value) != "" {
       parts = parts + [url_encode(key) + "=" + url_encode(to_string(value))]
     }
@@ -671,7 +671,7 @@ fn __with_query(url, query) {
 }
 
 fn __clean_body(args, deny) {
-  var body = {}
+  let body = {}
   for key in (args ?? {}).keys() {
     if contains(deny, key) || starts_with(key, "_") {
       continue
@@ -682,7 +682,7 @@ fn __clean_body(args, deny) {
 }
 
 fn __canonical_method(method) {
-  let text = __text(method)
+  const text = __text(method)
   if text == "export_artifact" {
     return "artifact.export_request"
   }
@@ -696,8 +696,8 @@ fn __canonical_method(method) {
 }
 
 fn __required(args, snake_key) {
-  let camel = __snake_to_camel(snake_key)
-  let value = __text(args?.[snake_key] ?? args?.[camel])
+  const camel = __snake_to_camel(snake_key)
+  const value = __text(args?.[snake_key] ?? args?.[camel])
   if value == "" {
     return __err("missing_" + snake_key, "microsoft 365 method requires `" + snake_key + "`")
   }
@@ -727,12 +727,12 @@ fn __snake_to_camel(value) {
 }
 
 fn __validate_api_url(url) {
-  let text = __text(url)
+  const text = __text(url)
   if !starts_with(lowercase(text), "https://") {
     return __err("invalid_api_base_url", "microsoft graph api base url must be an absolute https URL")
   }
-  let parsed = url_parse(text)
-  let host = lowercase(__text(parsed?.host))
+  const parsed = url_parse(text)
+  const host = lowercase(__text(parsed?.host))
   if !contains(MICROSOFT_GRAPH_ALLOWED_HOSTS, host) {
     return __err("disallowed_api_base_url", "microsoft graph api host `" + host + "` is not in the allowlist")
   }
@@ -740,7 +740,7 @@ fn __validate_api_url(url) {
 }
 
 fn __strip_trailing_slash(value) {
-  let text = __text(value)
+  const text = __text(value)
   if text.ends_with("/") {
     return text[0:len(text) - 1]
   }
@@ -748,7 +748,7 @@ fn __strip_trailing_slash(value) {
 }
 
 fn __normalize_resource_path(value) {
-  let text = __text(value)
+  const text = __text(value)
   if starts_with(text, "/") {
     return text
   }
@@ -756,7 +756,7 @@ fn __normalize_resource_path(value) {
 }
 
 fn __encode_drive_path(path) {
-  var parts = []
+  let parts = []
   for part in __text(path).split("/") {
     if part != "" {
       parts = parts + [url_encode(part)]
@@ -773,7 +773,7 @@ fn __artifact_item_id(args) {
 }
 
 fn __format_mime_type(format) {
-  let lower = lowercase(__text(format))
+  const lower = lowercase(__text(format))
   if lower == "pdf" {
     return "application/pdf"
   }
@@ -808,7 +808,7 @@ fn __body_json(raw) {
 }
 
 fn __header(headers, name) {
-  let wanted = lowercase(name)
+  const wanted = lowercase(name)
   for entry in (headers ?? {}).entries() {
     if lowercase(trim(to_string(entry.key))) == wanted {
       return entry.value
@@ -818,11 +818,11 @@ fn __header(headers, name) {
 }
 
 fn __last_path_segment(value) {
-  let text = __text(value)
+  const text = __text(value)
   if text == "" {
     return ""
   }
-  let parts = text.split("/")
+  const parts = text.split("/")
   if len(parts) == 0 {
     return text
   }
