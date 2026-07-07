@@ -277,7 +277,7 @@ pub fn poll_tick(ctx) {
     if item_id == "" {
       continue
     }
-    let removed = item?.deleted != nil || item?["@removed"] != nil
+    let removed = item?.deleted != nil || item?.["@removed"] != nil
     let changed_at = __text(item?.lastModifiedDateTime ?? item?.createdDateTime ?? ctx?.tick_at)
     let fingerprint = json_stringify({removed: removed, item: item, changed_at: changed_at})
     let cache_key = __text(ctx?.binding_id ?? binding?.id ?? "microsoft.poll") + ":" + item_id
@@ -316,8 +316,8 @@ pub fn poll_tick(ctx) {
   return {
     events: events,
     cursor: {
-      next_link: payload?["@odata.nextLink"],
-      delta_link: payload?["@odata.deltaLink"] ?? ctx?.cursor?.delta_link,
+      next_link: payload?.["@odata.nextLink"],
+      delta_link: payload?.["@odata.deltaLink"] ?? ctx?.cursor?.delta_link,
     },
     state: state + {poll_cache: next_cache},
   }
@@ -648,7 +648,7 @@ fn __query_params(args) {
     format: "format",
   }
   for key in aliases.keys() {
-    let value = args?[key]
+    let value = args?.[key]
     if value != nil && __text(value) != "" {
       out[aliases[key]] = value
     }
@@ -697,7 +697,7 @@ fn __canonical_method(method) {
 
 fn __required(args, snake_key) {
   let camel = __snake_to_camel(snake_key)
-  let value = __text(args?[snake_key] ?? args?[camel])
+  let value = __text(args?.[snake_key] ?? args?.[camel])
   if value == "" {
     return __err("missing_" + snake_key, "microsoft 365 method requires `" + snake_key + "`")
   }
