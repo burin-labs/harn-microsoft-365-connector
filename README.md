@@ -16,15 +16,27 @@ shaped:
 The document rendering and manifest vocabulary stays in `harn-documents`; this
 package owns the external Microsoft 365 boundary.
 
-## Provider
+## Install
+
+```sh
+harn add github.com/burin-labs/harn-microsoft-365-connector@v0.1.0
+```
+
+For local development, use a path dependency on this checkout. Use the Harn
+CLI version pinned in `.harn-version` for validation.
+
+## Configure
 
 - Provider id: `microsoft_365`
 - API host: `graph.microsoft.com`
-- Recommended scopes for artifact workflows:
-  - `Files.Read`
-  - `Files.ReadWrite`
-  - `Sites.Read.All`
-  - `Sites.ReadWrite.All`
+- Required secrets: `microsoft-365/access-token`,
+  `microsoft-365/client-state`
+- Required OAuth scopes: `offline_access`, `Files.Read`, `Files.ReadWrite`,
+  `Sites.Read.All`, `Sites.ReadWrite.All`
+
+Start browser-based setup with `harn connect microsoft-365`. The provider id
+uses an underscore, so check status with
+`harn connect status --connector microsoft_365 --json`.
 
 ## Useful methods
 
@@ -41,7 +53,7 @@ package owns the external Microsoft 365 boundary.
 - `artifact.export_request`
 - `artifact.import_request`
 
-## References
+## Provider references
 
 - Microsoft Graph DriveItem format conversion:
   <https://learn.microsoft.com/en-us/graph/api/driveitem-get-content-format?view=graph-rest-1.0>
@@ -54,7 +66,7 @@ package owns the external Microsoft 365 boundary.
 - Microsoft Graph DriveItem delta:
   <https://learn.microsoft.com/en-us/graph/api/driveitem-delta?view=graph-rest-1.0>
 
-## Validation
+## Validate
 
 ```sh
 harn connector test . --provider microsoft_365

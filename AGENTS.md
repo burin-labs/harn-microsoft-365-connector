@@ -1,9 +1,17 @@
 # AGENTS.md
 
-Use `CLAUDE.md` for repo-local notes. Shared connector authoring rules live in
-the Harn guide:
+Shared connector authoring rules live in the Harn guide:
 
-- https://github.com/burin-labs/harn/blob/main/docs/src/connectors/authoring.md
+- [Connector authoring guide](https://github.com/burin-labs/harn/blob/main/docs/src/connectors/authoring.md)
 
-Keep this file as a pointer. Put shared connector guidance in the Harn guide,
-not here.
+Put shared connector guidance in the Harn guide and keep only Microsoft
+365-specific notes here.
+
+## Provider notes
+
+- Keep API calls scoped to `graph.microsoft.com`.
+- Use the exact Files and Sites scopes declared in `harn.toml`.
+- Treat Graph change notifications as wake-up events; DriveItem delta is the
+  authoritative polling path for changed-file details.
+- The package provider id is `microsoft_365`; secret names and the interactive
+  setup command use `microsoft-365`.
