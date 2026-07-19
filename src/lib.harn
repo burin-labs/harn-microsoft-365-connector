@@ -38,7 +38,13 @@ type MicrosoftConnectorState = {
   poll_bindings: dict,
 }
 
-let MICROSOFT_STATE: MicrosoftConnectorState = {initialized: false, active: false, ctx: {}, webhook_bindings: {}, poll_bindings: {}}
+let MICROSOFT_STATE: MicrosoftConnectorState = {
+  initialized: false,
+  active: false,
+  ctx: {},
+  webhook_bindings: {},
+  poll_bindings: {},
+}
 
 /** Return this connector's Harn provider id. */
 pub fn provider_id() {
@@ -109,7 +115,10 @@ pub fn activate(bindings = []) {
   for binding in bindings ?? [] {
     const binding_id = __text(
       binding?.binding_id ?? binding?.id
-        ?? ("binding-" + to_string(len(webhook_bindings.keys()) + len(poll_bindings.keys()))),
+        ?? ("binding-"
+        + to_string(
+        len(webhook_bindings.keys()) + len(poll_bindings.keys()),
+      )),
     )
     const kind = __text(binding?.kind ?? "webhook")
     if kind == "webhook" {
@@ -131,7 +140,11 @@ pub fn activate(bindings = []) {
     }
   }
   MICROSOFT_STATE = MICROSOFT_STATE
-    + {active: true, webhook_bindings: webhook_bindings, poll_bindings: poll_bindings}
+    + {
+    active: true,
+    webhook_bindings: webhook_bindings,
+    poll_bindings: poll_bindings,
+  }
   return {
     provider: MICROSOFT_365_PROVIDER_ID,
     bindings: len(webhook_bindings.keys()) + len(poll_bindings.keys()),
@@ -142,7 +155,13 @@ pub fn activate(bindings = []) {
 
 /** Clear connector lifecycle state. */
 pub fn shutdown() {
-  MICROSOFT_STATE = {initialized: false, active: false, ctx: {}, webhook_bindings: {}, poll_bindings: {}}
+  MICROSOFT_STATE = {
+    initialized: false,
+    active: false,
+    ctx: {},
+    webhook_bindings: {},
+    poll_bindings: {},
+  }
   return {active: false, provider: MICROSOFT_365_PROVIDER_ID}
 }
 
@@ -155,7 +174,8 @@ pub fn shutdown() {
 pub fn normalize_inbound(raw) {
   const validation_token = __text(
     raw?.validation_token ?? raw?.validationToken ?? raw?.query?.validationToken
-      ?? raw?.query_params?.validationToken,
+      ?? raw?.query_params
+      ?.validationToken,
   )
   if validation_token != "" {
     return {
@@ -170,19 +190,29 @@ pub fn normalize_inbound(raw) {
   const payload = unwrap(body)
   const notifications = payload?.value ?? raw?.notifications ?? []
   if len(notifications) == 0 {
-    return __reject(400, "missing_notifications", "microsoft graph notification body must contain value[]")
+    return __reject(
+      400,
+      "missing_notifications",
+      "microsoft graph notification body must contain value[]",
+    )
   }
   const expected_client_state = __text(
     raw?.client_state ?? raw?.clientState ?? raw?.metadata?.client_state
-      ?? MICROSOFT_STATE.ctx?.client_state,
+      ?? MICROSOFT_STATE.ctx
+      ?.client_state,
   )
   if len(expected_client_state) > MICROSOFT_CLIENT_STATE_MAX_LEN {
-    return __reject(400, "client_state_too_long", "microsoft graph clientState exceeds maximum length")
+    return __reject(
+      400,
+      "client_state_too_long",
+      "microsoft graph clientState exceeds maximum length",
+    )
   }
   let events = []
   for notification in notifications {
     const provided_client_state = __text(notification?.clientState)
-    if expected_client_state != "" && !constant_time_eq(expected_client_state, provided_client_state) {
+    if expected_client_state != ""
+      && !constant_time_eq(expected_client_state, provided_client_state) {
       return __reject(401, "invalid_client_state", "microsoft graph clientState did not match")
     }
     const change_type = __text(notification?.changeType ?? "updated")
@@ -344,7 +374,9 @@ pub fn artifact_export_request(args = nil) {
   const format = __text(args?.format ?? "pdf")
   const name = __text((args?.name ?? "microsoft-365-export.") + format)
   const cfg = {
-    graph_api_base_url: __strip_trailing_slash(__text(args?.graph_api_base_url ?? MICROSOFT_GRAPH_API_BASE_URL)),
+    graph_api_base_url: __strip_trailing_slash(
+      __text(args?.graph_api_base_url ?? MICROSOFT_GRAPH_API_BASE_URL),
+    ),
   }
   const item_url = __drive_item_url(cfg, args ?? {}, "/content")
   if is_err(item_url) {
@@ -359,7 +391,9 @@ pub fn artifact_export_request(args = nil) {
     query: {format: format},
     artifact: {
       uri: "msgraph-drive://items/" + __artifact_item_id(args ?? {}) + "/content?format="
-        + url_encode(format),
+        + url_encode(
+        format,
+      ),
       name: name,
       mime_type: __format_mime_type(format),
       source_ref: __drive_item_ref(__artifact_item_id(args ?? {}), {}),
@@ -376,7 +410,9 @@ pub fn artifact_import_request(args = nil) {
   }
   const mime_type = __text(args?.mime_type ?? args?.mimeType ?? "application/octet-stream")
   const cfg = {
-    graph_api_base_url: __strip_trailing_slash(__text(args?.graph_api_base_url ?? MICROSOFT_GRAPH_API_BASE_URL)),
+    graph_api_base_url: __strip_trailing_slash(
+      __text(args?.graph_api_base_url ?? MICROSOFT_GRAPH_API_BASE_URL),
+    ),
   }
   const content_url = __drive_item_content_url(cfg, args ?? {})
   if is_err(content_url) {
@@ -425,7 +461,13 @@ fn __request_for_method(method, args, cfg) {
       return item_url
     }
     return Ok(
-      __json_request("GET", unwrap(item_url), nil, cfg, args + {format: __text(args?.format ?? "pdf")}),
+      __json_request(
+        "GET",
+        unwrap(item_url),
+        nil,
+        cfg,
+        args + {format: __text(args?.format ?? "pdf")},
+      ),
     )
   }
   if method == "drive.items.putContent" {
@@ -433,7 +475,9 @@ fn __request_for_method(method, args, cfg) {
     if is_err(content_url) {
       return content_url
     }
-    return Ok(__json_request("PUT", unwrap(content_url), args?.body ?? args?.content ?? "", cfg, args))
+    return Ok(
+      __json_request("PUT", unwrap(content_url), args?.body ?? args?.content ?? "", cfg, args),
+    )
   }
   if method == "drive.items.createUploadSession" {
     const upload_url = __drive_upload_session_url(cfg, args)
@@ -499,12 +543,17 @@ fn __drive_delta_request(args, cfg) {
     return Ok(__json_request("GET", delta_url, nil, cfg, {}))
   }
   const resource_path = __drive_resource_path(args, "/me/drive/root")
-  return Ok(__json_request("GET", cfg.graph_api_base_url + resource_path + "/delta", nil, cfg, args))
+  return Ok(
+    __json_request("GET", cfg.graph_api_base_url + resource_path + "/delta", nil, cfg, args),
+  )
 }
 
 fn __drive_children_url(cfg, args) {
   if __text(args?.resource_path ?? args?.resourcePath) != "" {
-    return cfg.graph_api_base_url + __normalize_resource_path(args?.resource_path ?? args?.resourcePath)
+    return cfg.graph_api_base_url
+      + __normalize_resource_path(
+      args?.resource_path ?? args?.resourcePath,
+    )
       + "/children"
   }
   if __text(args?.item_id ?? args?.itemId) != "" {
@@ -537,19 +586,24 @@ fn __drive_item_url(cfg, args, suffix) {
 
 fn __drive_item_content_url(cfg, args) {
   if __text(args?.item_id ?? args?.itemId) != ""
-    || __text(args?.resource_path ?? args?.resourcePath) != "" {
+    || __text(args?.resource_path ?? args?.resourcePath)
+    != "" {
     return __drive_item_url(cfg, args, "/content")
   }
   const path = __text(args?.drive_path ?? args?.drivePath)
   if path == "" {
-    return __err("missing_item_id", "microsoft 365 upload requires item_id, resource_path, or drive_path")
+    return __err(
+      "missing_item_id",
+      "microsoft 365 upload requires item_id, resource_path, or drive_path",
+    )
   }
   return Ok(cfg.graph_api_base_url + "/me/drive/root:/" + __encode_drive_path(path) + ":/content")
 }
 
 fn __drive_upload_session_url(cfg, args) {
   if __text(args?.item_id ?? args?.itemId) != ""
-    || __text(args?.resource_path ?? args?.resourcePath) != "" {
+    || __text(args?.resource_path ?? args?.resourcePath)
+    != "" {
     return __drive_item_url(cfg, args, "/createUploadSession")
   }
   const path = __text(args?.drive_path ?? args?.drivePath)
@@ -600,7 +654,10 @@ fn __graph_request(request) {
   }
   const http_response = unwrap(response)
   if http_response.status >= 300 && http_response.status < 400 {
-    return {status: http_response.status, location: __header(http_response.headers ?? {}, "location")}
+    return {
+      status: http_response.status,
+      location: __header(http_response.headers ?? {}, "location"),
+    }
   }
   const text = http_response.body ?? "{}"
   const decoded = try {
@@ -623,7 +680,10 @@ fn __graph_request(request) {
         status: http_response.status,
         code: payload?.error?.code ?? "microsoft_graph_error",
         message: payload?.error?.message
-          ?? ("Microsoft Graph API request failed with status " + to_string(http_response.status)),
+          ?? ("Microsoft Graph API request failed with status "
+          + to_string(
+          http_response.status,
+        )),
       },
     )
   }
@@ -631,7 +691,9 @@ fn __graph_request(request) {
 }
 
 fn __config(args) {
-  const access_token = __text(args?.access_token ?? args?.token ?? MICROSOFT_STATE.ctx?.access_token)
+  const access_token = __text(
+    args?.access_token ?? args?.token ?? MICROSOFT_STATE.ctx?.access_token,
+  )
   if access_token == "" {
     return __err("missing_access_token", "microsoft 365 connector requires access_token")
   }
@@ -643,7 +705,9 @@ fn __config(args) {
   if is_err(checked) {
     return checked
   }
-  return Ok({access_token: access_token, graph_api_base_url: __strip_trailing_slash(graph_api_base_url)})
+  return Ok(
+    {access_token: access_token, graph_api_base_url: __strip_trailing_slash(graph_api_base_url)},
+  )
 }
 
 fn __graph_headers(cfg) {
@@ -745,12 +809,18 @@ fn __snake_to_camel(value) {
 fn __validate_api_url(url) {
   const text = __text(url)
   if !starts_with(lowercase(text), "https://") {
-    return __err("invalid_api_base_url", "microsoft graph api base url must be an absolute https URL")
+    return __err(
+      "invalid_api_base_url",
+      "microsoft graph api base url must be an absolute https URL",
+    )
   }
   const parsed = url_parse(text)
   const host = lowercase(__text(parsed?.host))
   if !contains(MICROSOFT_GRAPH_ALLOWED_HOSTS, host) {
-    return __err("disallowed_api_base_url", "microsoft graph api host `" + host + "` is not in the allowlist")
+    return __err(
+      "disallowed_api_base_url",
+      "microsoft graph api host `" + host + "` is not in the allowlist",
+    )
   }
   return Ok(text)
 }
@@ -784,7 +854,8 @@ fn __encode_drive_path(path) {
 fn __artifact_item_id(args) {
   return __text(
     args?.item_id ?? args?.itemId ?? args?.resource_path ?? args?.resourcePath ?? args?.drive_path
-      ?? args?.drivePath,
+      ?? args
+      ?.drivePath,
   )
 }
 
@@ -869,7 +940,9 @@ fn __drive_item_ref(item_id, item) {
 
 fn __event_dedupe_key(event, subscription_id, resource, sequence) {
   return MICROSOFT_365_PROVIDER_ID + ":" + __text(event) + ":" + __text(subscription_id) + ":"
-    + __text(resource)
+    + __text(
+    resource,
+  )
     + ":"
     + __text(sequence)
 }

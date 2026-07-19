@@ -24,17 +24,23 @@ pipeline default() {
       responses: [
         {
           status: 200,
-          body: "{\"id\":\"item_123\",\"name\":\"Report.docx\",\"file\":{\"mimeType\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"}}",
+          body:
+            "{\"id\":\"item_123\",\"name\":\"Report.docx\",\"file\":{\"mimeType\":\"application/vnd.openxmlformats-officedocument.wordprocessingml.document\"}}",
           headers: {},
         },
-        {status: 200, body: "{\"value\":[{\"id\":\"item_123\",\"name\":\"Report.docx\"}]}", headers: {}},
+        {
+          status: 200,
+          body: "{\"value\":[{\"id\":\"item_123\",\"name\":\"Report.docx\"}]}",
+          headers: {},
+        },
         {status: 200, body: "DOCX-BYTES", headers: {}},
         {status: 302, body: "", headers: {Location: "https://download.example/report.pdf"}},
         {status: 200, body: "{\"id\":\"item_123\",\"name\":\"Report.docx\"}", headers: {}},
         {status: 200, body: "{\"uploadUrl\":\"https://upload.example/session\"}", headers: {}},
         {
           status: 200,
-          body: "{\"value\":[{\"id\":\"item_123\",\"name\":\"Report.docx\"}],\"@odata.deltaLink\":\"https://graph.microsoft.com/v1.0/me/drive/root/delta?$deltatoken=next\"}",
+          body:
+            "{\"value\":[{\"id\":\"item_123\",\"name\":\"Report.docx\"}],\"@odata.deltaLink\":\"https://graph.microsoft.com/v1.0/me/drive/root/delta?$deltatoken=next\"}",
           headers: {},
         },
         {status: 201, body: "{\"id\":\"sub_123\",\"resource\":\"me/drive/root\"}", headers: {}},
@@ -51,7 +57,10 @@ pipeline default() {
   const exported = call("drive.items.export", {item_id: "item_123", format: "pdf"})
   expect_eq(exported.status, 302, "export returns redirect descriptor")
   expect_eq(exported.location, "https://download.example/report.pdf", "export location")
-  const upload_rejected = call("drive.items.putContent", {item_id: "item_123", content: "doc bytes"})
+  const upload_rejected = call(
+    "drive.items.putContent",
+    {item_id: "item_123", content: "doc bytes"},
+  )
   expect(is_err(upload_rejected), "mutating Drive upload requires approval")
   expect_eq(unwrap_err(upload_rejected).code, "approval_required", "approval code")
   call("drive.items.putContent", {item_id: "item_123", content: "doc bytes", _approved: true})
