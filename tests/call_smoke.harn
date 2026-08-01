@@ -8,16 +8,16 @@ import {
 } from "../src/lib"
 import { expect, expect_eq } from "./assertions"
 
-pipeline default() {
-  egress_policy({allow: ["graph.microsoft.com"], default: "deny"})
-  shutdown()
-  const normalized = init("invalid-context")
+pipeline default(harness: Harness) {
+  harness.net.egress_policy({allow: ["graph.microsoft.com"], default: "deny"})
+  shutdown(harness)
+  const normalized = init(harness, "invalid-context")
   expect_eq(normalized.ctx, {}, "non-dict init context is normalized")
-  const initialized = init({access_token: "secret_access"})
+  const initialized = init(harness, {access_token: "secret_access"})
   expect_eq(initialized.ctx.access_token, "secret_access", "dict init context is retained")
-  http_mock_clear()
+  harness.testing.http_mock_clear()
   const graph = "https://graph.microsoft.com/v1.0"
-  http_mock(
+  harness.testing.http_mock(
     "*",
     "https://graph.microsoft.com/*",
     {
@@ -49,27 +49,34 @@ pipeline default() {
       ],
     },
   )
-  const file = call("drive.items.get", {item_id: "item_123", select: "id,name"})
+  const file = call(harness, "drive.items.get", {item_id: "item_123", select: "id,name"})
   expect_eq(file.id, "item_123", "items.get response")
-  call("drive.items.list", {top: 10})
-  const content = call("drive.items.content", {item_id: "item_123"})
+  call(harness, "drive.items.list", {top: 10})
+  const content = call(harness, "drive.items.content", {item_id: "item_123"})
   expect_eq(content.bytes, "DOCX-BYTES", "content bytes response")
-  const exported = call("drive.items.export", {item_id: "item_123", format: "pdf"})
+  const exported = call(harness, "drive.items.export", {item_id: "item_123", format: "pdf"})
   expect_eq(exported.status, 302, "export returns redirect descriptor")
   expect_eq(exported.location, "https://download.example/report.pdf", "export location")
   const upload_rejected = call(
+    harness,
     "drive.items.putContent",
     {item_id: "item_123", content: "doc bytes"},
   )
   expect(is_err(upload_rejected), "mutating Drive upload requires approval")
   expect_eq(unwrap_err(upload_rejected).code, "approval_required", "approval code")
-  call("drive.items.putContent", {item_id: "item_123", content: "doc bytes", _approved: true})
   call(
+    harness,
+    "drive.items.putContent",
+    {item_id: "item_123", content: "doc bytes", _approved: true},
+  )
+  call(
+    harness,
     "drive.items.createUploadSession",
     {drive_path: "Reports/report.docx", name: "report.docx", _approved: true},
   )
-  call("drive.delta", {resource_path: "/me/drive/root"})
+  call(harness, "drive.delta", {resource_path: "/me/drive/root"})
   call(
+    harness,
     "subscriptions.create",
     {
       changeType: "updated",
@@ -80,12 +87,13 @@ pipeline default() {
       _approved: true,
     },
   )
-  call("subscriptions.delete", {subscription_id: "sub_123", _approved: true})
+  call(harness, "subscriptions.delete", {subscription_id: "sub_123", _approved: true})
   call(
+    harness,
     "subscriptions.renew",
     {subscription_id: "sub_123", expirationDateTime: "2026-07-08T12:00:00Z", _approved: true},
   )
-  const calls = http_mock_calls({include_sensitive: true})
+  const calls = harness.testing.http_mock_calls({include_sensitive: true})
   expect_eq(len(calls), 10, "all expected outbound methods dispatched")
   expect_eq(calls[0].method, "GET", "items.get uses GET")
   expect_eq(calls[0].url, graph + "/me/drive/items/item_123?%24select=id%2Cname", "items.get URL")
@@ -131,6 +139,7 @@ pipeline default() {
     "export request URL",
   )
   const bad_host = call(
+    harness,
     "drive.items.get",
     {
       item_id: "item_123",
@@ -140,6 +149,6 @@ pipeline default() {
   )
   expect(is_err(bad_host), "disallowed graph_api_base_url rejected")
   expect_eq(unwrap_err(bad_host).code, "disallowed_api_base_url", "disallowed host code")
-  http_mock_clear()
-  shutdown()
+  harness.testing.http_mock_clear()
+  shutdown(harness)
 }
