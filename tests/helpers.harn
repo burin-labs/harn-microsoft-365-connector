@@ -1,14 +1,15 @@
 import { activate, init, kinds, payload_schema, provider_id, shutdown } from "../src/lib"
 
 /** Assert the exported connector lifecycle/interface surface. */
-pub fn assert_microsoft_365_interface() {
-  shutdown()
+pub fn assert_microsoft_365_interface(harness: Harness) {
+  shutdown(harness)
   require provider_id() == "microsoft_365", "provider id"
   require kinds() == ["webhook", "poll"], "supported kinds"
   require payload_schema().harn_schema_name == "Microsoft365EventPayload", "payload schema name"
-  const initialized = init({client_state: "test-state", access_token: "secret_access"})
+  const initialized = init(harness, {client_state: "test-state", access_token: "secret_access"})
   require initialized.initialized, "init stores state"
   const activated = activate(
+    harness,
     [
       {
         id: "microsoft.drive.subscription",
