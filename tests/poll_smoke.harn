@@ -38,7 +38,7 @@ fn drive_item(id, modified, removed = false) {
   return item
 }
 
-pipeline default(harness: Harness) {
+pipeline test_poll_smoke(harness: Harness) {
   harness.net.egress_policy({allow: ["graph.microsoft.com"], default: "deny"})
   shutdown(harness)
   init(harness, {access_token: "secret_access"})
