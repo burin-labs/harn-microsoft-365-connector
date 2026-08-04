@@ -8,7 +8,7 @@ import {
 } from "../src/lib"
 import { expect, expect_eq } from "./assertions"
 
-pipeline default(harness: Harness) {
+pipeline test_call_smoke(harness: Harness) {
   harness.net.egress_policy({allow: ["graph.microsoft.com"], default: "deny"})
   shutdown(harness)
   const normalized = init(harness, "invalid-context")
@@ -108,7 +108,7 @@ pipeline default(harness: Harness) {
     graph + "/me/drive/root:/Reports/report.docx:/createUploadSession",
     "upload session URL",
   )
-  const upload_body = json_parse(calls[5].body)
+  const upload_body: {item: {name: string}} = json_parse(calls[5].body)
   expect_eq(upload_body.item.name, "report.docx", "upload session body name")
   expect_eq(calls[7].url, graph + "/subscriptions", "subscription create URL")
   expect_eq(calls[8].method, "DELETE", "subscription delete method")

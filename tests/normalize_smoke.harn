@@ -2,7 +2,7 @@ import { init, normalize_inbound, shutdown } from "../src/lib"
 import { expect, expect_eq } from "./assertions"
 import { assert_microsoft_365_interface, graph_notification_body } from "./helpers"
 
-pipeline default(harness: Harness) {
+pipeline test_normalize_smoke(harness: Harness) {
   const state = "test-state"
   assert_microsoft_365_interface(harness)
   const validation = normalize_inbound(harness, {query: {validationToken: "validation-token"}})
