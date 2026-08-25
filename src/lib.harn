@@ -97,13 +97,13 @@ pub fn payload_schema() {
 pub fn init(harness: Harness, ctx = nil) {
   MICROSOFT_STATE = MICROSOFT_STATE
     + {
-    initialized: true,
-    ctx: if type_of(ctx) == "dict" {
-      ctx
-    } else {
-      {}
-    },
-  }
+      initialized: true,
+      ctx: if type_of(ctx) == "dict" {
+        ctx
+      } else {
+        {}
+      },
+    }
   return MICROSOFT_STATE
 }
 
@@ -116,9 +116,7 @@ pub fn activate(harness: Harness, bindings = []) {
     const binding_id = __text(
       binding?.binding_id ?? binding?.id
         ?? ("binding-"
-        + to_string(
-        len(webhook_bindings.keys()) + len(poll_bindings.keys()),
-      )),
+          + to_string(len(webhook_bindings.keys()) + len(poll_bindings.keys()))),
     )
     const kind = __text(binding?.kind ?? "webhook")
     if kind == "webhook" {
@@ -140,11 +138,7 @@ pub fn activate(harness: Harness, bindings = []) {
     }
   }
   MICROSOFT_STATE = MICROSOFT_STATE
-    + {
-    active: true,
-    webhook_bindings: webhook_bindings,
-    poll_bindings: poll_bindings,
-  }
+    + {active: true, webhook_bindings: webhook_bindings, poll_bindings: poll_bindings}
   return {
     provider: MICROSOFT_365_PROVIDER_ID,
     bindings: len(webhook_bindings.keys()) + len(poll_bindings.keys()),
@@ -174,8 +168,7 @@ pub fn shutdown(harness: Harness) {
 pub fn normalize_inbound(harness: Harness, raw) {
   const validation_token = __text(
     raw?.validation_token ?? raw?.validationToken ?? raw?.query?.validationToken
-      ?? raw?.query_params
-      ?.validationToken,
+      ?? raw?.query_params?.validationToken,
   )
   if validation_token != "" {
     return {
@@ -198,8 +191,7 @@ pub fn normalize_inbound(harness: Harness, raw) {
   }
   const expected_client_state = __text(
     raw?.client_state ?? raw?.clientState ?? raw?.metadata?.client_state
-      ?? MICROSOFT_STATE.ctx
-      ?.client_state,
+      ?? MICROSOFT_STATE.ctx?.client_state,
   )
   if len(expected_client_state) > MICROSOFT_CLIENT_STATE_MAX_LEN {
     return __reject(
@@ -221,41 +213,41 @@ pub fn normalize_inbound(harness: Harness, raw) {
     const event = "microsoft_365.graph." + change_type
     events = events
       + [
-      {
-        provider: MICROSOFT_365_PROVIDER_ID,
-        kind: event,
-        dedupe_key: __event_dedupe_key(
-          event,
-          __text(notification?.subscriptionId),
-          resource,
-          __text(notification?.sequenceNumber ?? notification?.subscriptionExpirationDateTime),
-        ),
-        payload: {
+        {
           provider: MICROSOFT_365_PROVIDER_ID,
-          event: event,
-          event_type: event,
-          subscription_id: notification?.subscriptionId,
-          tenant_id: notification?.tenantId,
-          change_type: change_type,
-          resource: resource,
-          resource_id: resource_id,
-          item_id: resource_id,
-          lifecycle_event: notification?.lifecycleEvent,
-          subscription_expiration: notification?.subscriptionExpirationDateTime,
-          raw: notification,
-        },
-        source: "microsoft_365.change_notification",
-        signature_status: {
-          state: if expected_client_state == "" {
-            "unsigned"
-          } else {
-            "verified"
+          kind: event,
+          dedupe_key: __event_dedupe_key(
+            event,
+            __text(notification?.subscriptionId),
+            resource,
+            __text(notification?.sequenceNumber ?? notification?.subscriptionExpirationDateTime),
+          ),
+          payload: {
+            provider: MICROSOFT_365_PROVIDER_ID,
+            event: event,
+            event_type: event,
+            subscription_id: notification?.subscriptionId,
+            tenant_id: notification?.tenantId,
+            change_type: change_type,
+            resource: resource,
+            resource_id: resource_id,
+            item_id: resource_id,
+            lifecycle_event: notification?.lifecycleEvent,
+            subscription_expiration: notification?.subscriptionExpirationDateTime,
+            raw: notification,
           },
-          scheme: "clientState",
+          source: "microsoft_365.change_notification",
+          signature_status: {
+            state: if expected_client_state == "" {
+              "unsigned"
+            } else {
+              "verified"
+            },
+            scheme: "clientState",
+          },
+          source_refs: [__graph_resource_ref(resource_id, resource)],
         },
-        source_refs: [__graph_resource_ref(resource_id, resource)],
-      },
-    ]
+      ]
   }
   if len(events) == 1 {
     return {type: "event", event: events[0]}
@@ -338,26 +330,26 @@ pub fn poll_tick(harness: Harness, ctx) {
     }
     events = events
       + [
-      {
-        provider: MICROSOFT_365_PROVIDER_ID,
-        kind: event_kind,
-        occurred_at: changed_at,
-        dedupe_key: "microsoft_365:" + event_kind + ":" + item_id + ":" + changed_at,
-        payload: {
+        {
           provider: MICROSOFT_365_PROVIDER_ID,
-          event: event_kind,
-          event_type: event_kind,
-          item_id: item_id,
-          resource_id: item_id,
-          removed: removed,
-          name: item?.name,
-          mime_type: item?.file?.mimeType,
-          web_url: item?.webUrl,
-          raw: item,
+          kind: event_kind,
+          occurred_at: changed_at,
+          dedupe_key: "microsoft_365:" + event_kind + ":" + item_id + ":" + changed_at,
+          payload: {
+            provider: MICROSOFT_365_PROVIDER_ID,
+            event: event_kind,
+            event_type: event_kind,
+            item_id: item_id,
+            resource_id: item_id,
+            removed: removed,
+            name: item?.name,
+            mime_type: item?.file?.mimeType,
+            web_url: item?.webUrl,
+            raw: item,
+          },
+          source_refs: [__drive_item_ref(item_id, item)],
         },
-        source_refs: [__drive_item_ref(item_id, item)],
-      },
-    ]
+      ]
   }
   return {
     events: events,
@@ -391,9 +383,7 @@ pub fn artifact_export_request(args = nil) {
     query: {format: format},
     artifact: {
       uri: "msgraph-drive://items/" + __artifact_item_id(args ?? {}) + "/content?format="
-        + url_encode(
-        format,
-      ),
+        + url_encode(format),
       name: name,
       mime_type: __format_mime_type(format),
       source_ref: __drive_item_ref(__artifact_item_id(args ?? {}), {}),
@@ -551,9 +541,7 @@ fn __drive_delta_request(args, cfg) {
 fn __drive_children_url(cfg, args) {
   if __text(args?.resource_path ?? args?.resourcePath) != "" {
     return cfg.graph_api_base_url
-      + __normalize_resource_path(
-      args?.resource_path ?? args?.resourcePath,
-    )
+      + __normalize_resource_path(args?.resource_path ?? args?.resourcePath)
       + "/children"
   }
   if __text(args?.item_id ?? args?.itemId) != "" {
@@ -587,7 +575,7 @@ fn __drive_item_url(cfg, args, suffix) {
 fn __drive_item_content_url(cfg, args) {
   if __text(args?.item_id ?? args?.itemId) != ""
     || __text(args?.resource_path ?? args?.resourcePath)
-    != "" {
+      != "" {
     return __drive_item_url(cfg, args, "/content")
   }
   const path = __text(args?.drive_path ?? args?.drivePath)
@@ -603,7 +591,7 @@ fn __drive_item_content_url(cfg, args) {
 fn __drive_upload_session_url(cfg, args) {
   if __text(args?.item_id ?? args?.itemId) != ""
     || __text(args?.resource_path ?? args?.resourcePath)
-    != "" {
+      != "" {
     return __drive_item_url(cfg, args, "/createUploadSession")
   }
   const path = __text(args?.drive_path ?? args?.drivePath)
@@ -681,9 +669,7 @@ fn __graph_request(net: HarnessNet, request) {
         code: payload?.error?.code ?? "microsoft_graph_error",
         message: payload?.error?.message
           ?? ("Microsoft Graph API request failed with status "
-          + to_string(
-          http_response.status,
-        )),
+            + to_string(http_response.status)),
       },
     )
   }
@@ -854,8 +840,7 @@ fn __encode_drive_path(path) {
 fn __artifact_item_id(args) {
   return __text(
     args?.item_id ?? args?.itemId ?? args?.resource_path ?? args?.resourcePath ?? args?.drive_path
-      ?? args
-      ?.drivePath,
+      ?? args?.drivePath,
   )
 }
 
@@ -940,9 +925,7 @@ fn __drive_item_ref(item_id, item) {
 
 fn __event_dedupe_key(event, subscription_id, resource, sequence) {
   return MICROSOFT_365_PROVIDER_ID + ":" + __text(event) + ":" + __text(subscription_id) + ":"
-    + __text(
-    resource,
-  )
+    + __text(resource)
     + ":"
     + __text(sequence)
 }
