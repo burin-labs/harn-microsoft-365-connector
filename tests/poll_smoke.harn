@@ -1,7 +1,7 @@
 import { init, poll_tick, shutdown } from "../src/lib"
 import { expect, expect_eq } from "./assertions"
 
-fn poll_ctx(cursor = nil, state = nil, extra = nil) {
+fn poll_ctx(cursor: any = nil, state: any = nil, extra: any = nil) {
   return {
     provider_id: "microsoft_365",
     binding_id: "microsoft.drive.delta",
@@ -18,13 +18,13 @@ fn poll_ctx(cursor = nil, state = nil, extra = nil) {
     + (extra ?? {})
 }
 
-fn delta_body(items, link_key, link_value) {
+fn delta_body(items: any, link_key: any, link_value: any) {
   let payload = {value: items}
   payload[link_key] = link_value
   return json_stringify(payload)
 }
 
-fn drive_item(id, modified, removed = false) {
+fn drive_item(id: any, modified: any, removed: any = false) {
   let item = {
     id: id,
     name: "Report " + id + ".docx",

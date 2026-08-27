@@ -31,7 +31,7 @@ pub fn assert_microsoft_365_interface(harness: Harness) {
 }
 
 /** Build a Microsoft Graph change notification body. */
-pub fn graph_notification_body(client_state = "test-state", extra = nil) {
+pub fn graph_notification_body(client_state: any = "test-state", extra: any = nil) {
   return json_stringify(
     {
       value: [
