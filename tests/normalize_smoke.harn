@@ -1,6 +1,6 @@
 import { init, normalize_inbound, shutdown } from "../src/lib"
-import { expect, expect_eq } from "./assertions"
-import { assert_microsoft_365_interface, graph_notification_body } from "./helpers"
+import { expect, expect_eq } from "../testdata/assertions"
+import { assert_microsoft_365_interface, graph_notification_body } from "../testdata/helpers"
 
 pipeline test_normalize_smoke(harness: Harness) {
   const state = "test-state"
